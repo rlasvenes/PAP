@@ -147,7 +147,7 @@ void tsp_ompfor(int etape, int lg, chemin_t chemin, int mask)
     #pragma omp parallel if (etape <= grain)
     {
       chemin_t tmp_chemin;
-      memcpy(tmp_chemin, chemin, etape * sizeof(int));
+      memcpy(tmp_chemin, chemin, etape * sizeof(int)); // on fait un memcpy car firstprivate ne copie pas toujours très bien
 
       #pragma omp for
       for (int i = 1; i < nbVilles; i++)
