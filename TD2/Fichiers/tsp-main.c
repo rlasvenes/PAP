@@ -95,10 +95,10 @@ void verifier_minimum(int lg, chemin_t chemin)
     if (lg + distance[0][chemin[nbVilles - 1]] < minimum)
     {
       minimum = lg + distance[0][chemin[nbVilles - 1]];
-      //printf("%3d :", minimum);
-      //for (int i = 0; i < nbVilles; i++)
-        //printf("%2d ", chemin[i]);
-      //printf("\n");
+      printf("%3d :", minimum);
+      for (int i = 0; i < nbVilles; i++)
+        printf("%2d ", chemin[i]);
+      printf("\n");
     }
   }
 }
@@ -129,8 +129,7 @@ void tsp_seq(int etape, int lg, chemin_t chemin, int mask)
   }
 }
 
-void tsp_ompfor(int etape, int lg, chemin_t chemin, int mask)
-{
+void tsp_ompfor(int etape, int lg, chemin_t chemin, int mask) {
   
   int ici, dist;
 
@@ -160,6 +159,45 @@ void tsp_ompfor(int etape, int lg, chemin_t chemin, int mask)
           tsp_seq(etape + 1, lg + dist, tmp_chemin, mask | (1 << i));
         }
       }
+    }
+  }
+}
+
+void tsp_task(int etape, int lg, chemin_t chemin, int mask)
+{
+  
+  int ici;
+
+  if (etape == nbVilles)
+    verifier_minimum(lg, chemin);
+
+  else if (etape > grain) {
+    tsp_seq(etape, lg, chemin, mask);
+  }
+  else
+  {
+    ici = chemin[etape - 1]; 
+    {
+
+      // omp for et single => pas bon
+      for (int i = 1; i < nbVilles; i++)
+      {
+        if (!present(i, mask))
+        {
+          #pragma omp task firstprivate(i, lg, etape, mask) 
+          {
+            int dist = 0;
+            chemin_t tmp_chemin;
+            memcpy(tmp_chemin, chemin, etape * sizeof(int)); // on fait un memcpy car firstprivate ne copie pas toujours très bien
+
+            tmp_chemin[etape] = i;
+            dist = distance[ici][i];
+
+            tsp_task(etape + 1, lg + dist, tmp_chemin, mask | (1 << i));
+          }
+        }
+      }
+      #pragma omp taskwait
     }
   }
 }
@@ -230,9 +268,10 @@ int main(int argc, char **argv)
 
   initialisation(argc, argv);
 
-  //printf("nbVilles = %3d - grain %d \n", nbVilles, grain);
+  printf("nbVilles = %3d - grain %d \n", nbVilles, grain);
 
-  //omp_set_max_active_levels(grain);
+  omp_set_max_active_levels(grain);
+  omp_set_nested(1);
 
   gettimeofday(&t1, NULL);
 
@@ -249,6 +288,10 @@ int main(int argc, char **argv)
     tsp_ompcol3();
   else if (!strcmp(argv[argc-1],"ompcol4")) 
     tsp_ompcol4();
+  else if (!strcmp(argv[argc-1],"task"))
+    #pragma omp parallel
+    #pragma omp single
+    tsp_task(1, 0, chemin, 1);
 
 
 /*
