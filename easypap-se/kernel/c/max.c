@@ -228,19 +228,20 @@ unsigned max_compute_depend (unsigned nb_iter)
     {
       for (int i = 0; i < GRAIN; i++)
         for (int j = 0; j < GRAIN; j++) {
-          #pragma omp task firstprivate(i,j) depend(out:br[i][j]) depend(in:br[i+1][j+1])
+          #pragma omp task firstprivate(i,j) depend(in:br[i-1][j], br[i][j-1]) depend(out:br[i][j])
           change |= tile_down_right (j * TILE_SIZE, i * TILE_SIZE, TILE_SIZE, TILE_SIZE, omp_get_thread_num());
         }
 
-        //#pragma omp taskwait
+      #pragma omp taskwait
           
       // Up-left propagation
       for (int i = GRAIN - 1; i >= 0; i--)
         for (int j = GRAIN - 1; j >= 0; j--) {
-          #pragma omp task firstprivate(i,j) depend(out:ul[i][j]) depend(in:ul[i-1][j-1])
+          #pragma omp task firstprivate(i,j) depend(in:ul[i+1][j], ul[i][j+1]) depend(out:ul[i][j])
           change |= tile_up_left (j * TILE_SIZE, i * TILE_SIZE, TILE_SIZE, TILE_SIZE, omp_get_thread_num());
         }
     }
+    #pragma omp taskwait
     if (!change) {
       res = it;
       break;
