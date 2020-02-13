@@ -1,16 +1,20 @@
 #!/usr/bin/env gnuplot -c
 
-
 set terminal png
 
-set datafile separator comma
+set datafile separator ","
 
 set title "Performance test"
 
 set xlabel "Tile size"
 
-set ylabel "Runtime"
+set ylabel "Runtime (ms)"
 
 set style data line
 
-plot for [i=2:3] filename using i:xtic(1) title columnheader linewidth 4
+set autoscale
+
+set logscale x 2
+
+
+plot filename using 1:2 with lines title columnhead 4, filename using 1:3 with lines title columnhead 

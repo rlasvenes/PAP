@@ -12,6 +12,7 @@ FROM_TS=4
 TO_TS=32
 
 PLOT_FILENAME="data.csv"
+OUT="out.png"
 
 function usage () {
     echo -e "Usage: ./$0 [-v]"
@@ -32,7 +33,6 @@ function join_by () {
 }
 
 function compute () {
-    #log "Launching \"$PROG -s $SIZE -k $KERNEL -g $2 -v $1 -a $NB_SPIRALE -n\""
     filename="${SIZE}_${KERNEL}_$2_${NB_SPIRALE}_$1.txt"
     touch $filename
     $PROG -s $SIZE -k $KERNEL -g $2 -v $1 -a $NB_SPIRALE -n > $filename 2>&1 
@@ -49,8 +49,8 @@ function create_empty_csv_file () {
     echo "" > $PLOT_FILENAME
 
     headers=("$@")
-    join_by ',' "${headers[@]}" 
-    echo ""
+    join_by ',' "${headers[@]}" > $PLOT_FILENAME
+    echo "" > $PLOT_FILENAME
 }
 
 function plot_perf () {
@@ -77,8 +77,6 @@ function compute_variants {
         done
         echo -e "" >> $PLOT_FILENAME
     done
-
-    plot_perf $PLOT_FILENAME
 }
 
 if [[ $1 == "-v" ]]; then
@@ -86,3 +84,4 @@ if [[ $1 == "-v" ]]; then
 fi
 
 compute_variants "${VARIANTS[@]}"
+plot_perf $PLOT_FILENAME > $OUT
