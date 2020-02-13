@@ -38,7 +38,7 @@ function computeVariants {
 
     variants_array=("$@")
     for (( i=$FROM_TS; i<=$TO_TS; i*=2 )); do
-        echo "$i," >> $plot_filename
+        echo -n "$i," >> $plot_filename
 
         for var in "${variants_array[@]}" 
         do
