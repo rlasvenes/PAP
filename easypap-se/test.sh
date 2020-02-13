@@ -6,10 +6,10 @@ TILE_SIZE=16
 KERNEL="max"
 NB_SPIRALE=100
 VARIANTS=( "seq" "depend" )
-VERBOSE=1
+VERBOSE=0
 
 FROM_TS=4
-TO_TS=32
+TO_TS=8
 STEP_TS=4
 
 function usage {
@@ -28,18 +28,28 @@ function compute {
     touch $filename
     $PROG -s $SIZE -k $KERNEL -g $2 -v $1 -a $NB_SPIRALE -n > $filename 2>&1 
     runtime=$(cat $filename | cut -d$'\n' -f3)
+    rm $filename
     log "Time for \"$1\" is $runtime"
+    return $runtime
 }
 
 function computeVariants {
     variants_array=("$@")
     for var in "${variants_array[@]}" 
     do
+    f=testGNUPLOT.txt
+    touch $f
+    echo "$var, " >> $f
         for (( i=$FROM_TS; i<=$TO_TS; i+=$STEP_TS )); do
-            log "Iterate on $var with tile size of \"$i\""
-            compute $var $i
+            #log "Iterate on $var with tile size of \"$i\""
+            runtime=$(compute $var $i)
+            log "runtime = $runtime\n"
         done
     done
 }
+
+if [[ $1 == "-v" ]]; then
+    VERBOSE=1
+fi
 
 computeVariants "${VARIANTS[@]}"
