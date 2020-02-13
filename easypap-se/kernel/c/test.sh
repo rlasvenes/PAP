@@ -1,12 +1,23 @@
 #!/bin/bash
 
+PROG="./run"
+SIZE=2048
+TILE_SIZE=16
+KERNEL="max"
+NB_SPIRALE=100
+VARIANTS=( "seq" "depend" )
+
 function usage {
     echo -e "Usage: ./$0 [size] [tile_size] [variant] [nb_spirale]"
 }
 
-function testSpirale_maxKernel {
-    echo "Launching \"./run -s $1 -k max -g $2 -v $3 -a $4\""
-    ./run -s $1 -k max -g $2 -v $3 -a $4 2>1 /dev/null
+function compute {
+    echo "Launching \"$PROG -s $SIZE -k $KERNEL -ts $TILE_SIZE -v $1 -a $NB_SPIRALE -n\""
+    filename="${SIZE}_${KERNEL}_${TILE_SIZE}_${NB_SPIRALE}.txt"
+    touch $filename
+    $PROG -s $SIZE -k $KERNEL -ts $TILE_SIZE -v $VARIANT -a $NB_SPIRALE -n > $filename
+    runtime=cat $filename | cut -d$'\n' -f3
+    echo -e "Time for \"$1\" is $runtime"
 }
 
 function computeVariants {
@@ -14,15 +25,8 @@ function computeVariants {
     for var in "${variants_array[@]}" 
     do
         echo "Iterate on $var"
+        compute $var
     done
 }
 
-size=2048
-tile_size=16
-variant="seq"
-nb_spirale=100
-
-variants_to_test=( "seq" "depend" )
-
-testSpirale_maxKernel $size $tile_size $variant $nb_spirale
 computeVariants "${variants_to_test[@]}"
