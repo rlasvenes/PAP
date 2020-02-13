@@ -23,13 +23,13 @@ function log () {
 }
 
 function compute {
-    log "Launching \"$PROG -s $SIZE -k $KERNEL -g $2 -v $1 -a $NB_SPIRALE -n\""
+    #log "Launching \"$PROG -s $SIZE -k $KERNEL -g $2 -v $1 -a $NB_SPIRALE -n\""
     filename="${SIZE}_${KERNEL}_$2_${NB_SPIRALE}_$1.txt"
     touch $filename
     $PROG -s $SIZE -k $KERNEL -g $2 -v $1 -a $NB_SPIRALE -n > $filename 2>&1 
     runtime=$(cat $filename | cut -d$'\n' -f3)
     rm $filename
-    log "Time for \"$1\" is $runtime"
+    log $runtime
 }
 
 function computeVariants {
@@ -41,8 +41,8 @@ function computeVariants {
     echo "$var, " >> $f
         for (( i=$FROM_TS; i<=$TO_TS; i+=$STEP_TS )); do
             #log "Iterate on $var with tile size of \"$i\""
-            compute $var $i | read value
-            log "runtime = $runtime"
+            value=$(compute $var $i )
+            log "runtime = ${value}"
         done
     done
 }
