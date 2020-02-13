@@ -28,7 +28,7 @@ function compute {
     touch $filename
     $PROG -s $SIZE -k $KERNEL -g $2 -v $1 -a $NB_SPIRALE -n > $filename 2>&1 
     runtime=$(cat $filename | cut -d$'\n' -f3)
-    rm $filename
+    #rm $filename
     log "Time for \"$1\" is $runtime"
     return $runtime
 }
