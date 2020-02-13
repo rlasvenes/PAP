@@ -12,10 +12,10 @@ function usage {
 }
 
 function compute {
-    echo "Launching \"$PROG -s $SIZE -k $KERNEL -ts $TILE_SIZE -v $1 -a $NB_SPIRALE -n\""
+    echo "Launching \"$PROG -s $SIZE -k $KERNEL -g $TILE_SIZE -v $1 -a $NB_SPIRALE -n\""
     filename="${SIZE}_${KERNEL}_${TILE_SIZE}_${NB_SPIRALE}.txt"
     touch $filename
-    $PROG -s $SIZE -k $KERNEL -ts $TILE_SIZE -v $VARIANT -a $NB_SPIRALE -n > $filename
+    $PROG -s $SIZE -k $KERNEL -g $TILE_SIZE -v $VARIANT -a $NB_SPIRALE -n > $filename
     runtime=$(cat $filename | cut -d$'\n' -f3)
     echo -e "Time for \"$1\" is $runtime"
 }
