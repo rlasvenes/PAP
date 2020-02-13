@@ -54,7 +54,7 @@ function create_empty_csv_file () {
 }
 
 function plot_perf () {
-    gnuplot -e "filename='data.csv'" plot.gnuplot
+    gnuplot -e "filename='$1'" plot.gnuplot
 }
 function compute_variants {
     create_empty_csv_file "Tile size" $@
@@ -77,6 +77,8 @@ function compute_variants {
         done
         echo -e "" >> $PLOT_FILENAME
     done
+
+    plot_perf $PLOT_FILENAME
 }
 
 if [[ $1 == "-v" ]]; then
