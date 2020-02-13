@@ -29,4 +29,4 @@ function computeVariants {
     done
 }
 
-computeVariants "${variants_to_test[@]}"
+computeVariants "${VARIANTS[@]}"
