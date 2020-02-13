@@ -10,7 +10,6 @@ VERBOSE=0
 
 FROM_TS=4
 TO_TS=32
-STEP_TS=4
 
 function usage {
     echo -e "Usage: ./$0 [-v]"
@@ -41,7 +40,7 @@ function computeVariants {
     for var in "${variants_array[@]}" 
     do
         echo -n "$var," >> $plot_filename
-        for (( i=$FROM_TS; i<=$TO_TS; i+=$STEP_TS )); do
+        for (( i=$FROM_TS; i<=$TO_TS; i*=2 )); do
             #log "Iterate on $var with tile size of \"$i\""
             value=$(compute $var $i )
             log "runtime = ${value} variant=$var [ts=$i]"
