@@ -13,7 +13,7 @@ function usage {
 
 function compute {
     echo "Launching \"$PROG -s $SIZE -k $KERNEL -g $TILE_SIZE -v $1 -a $NB_SPIRALE -n\""
-    filename="${SIZE}_${KERNEL}_${TILE_SIZE}_${NB_SPIRALE}.txt"
+    filename="${SIZE}_${KERNEL}_${TILE_SIZE}_${NB_SPIRALE}_$1.txt"
     touch $filename
     $PROG -s $SIZE -k $KERNEL -g $TILE_SIZE -v $1 -a $NB_SPIRALE -n > $filename
     runtime=$(cat $filename | cut -d$'\n' -f3)
