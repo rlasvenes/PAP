@@ -23,7 +23,7 @@ function log () {
 }
 
 function createGnuplotFile () {
-    touch
+    
 }
 
 function compute {
