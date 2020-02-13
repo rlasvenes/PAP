@@ -1,15 +1,15 @@
 #!/bin/bash
 
 PROG="./run"
-SIZE=2048
+SIZE=2048 
 TILE_SIZE=16
 KERNEL="max"
 NB_SPIRALE=100
-VARIANTS=( "seq" "depend" )
+VARIANTS=( "seq" "depend" "tiled" "omp")
 VERBOSE=0
 
-FROM_TS=4
-TO_TS=32
+FROM_TS=4 # start index of tile size
+TO_TS=32    
 
 PLOT_FILENAME="data.csv"
 OUT="out.png"
@@ -56,6 +56,7 @@ function create_empty_csv_file () {
 function plot_perf () {
     gnuplot -e "filename='$1'" plot.gnuplot
 }
+
 function compute_variants {
     create_empty_csv_file "Tile size" $@
 
