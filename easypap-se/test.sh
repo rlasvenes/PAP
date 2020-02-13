@@ -37,6 +37,7 @@ function computeVariants {
     for var in "${variants_array[@]}" 
     do
         plot_filename="gnuplot.txt"
+        echo "" > $plot_filename
         touch $plot_filename
     
         echo "$var, " >> $plot_filename
