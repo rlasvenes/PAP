@@ -35,16 +35,16 @@ function computeVariants {
     plot_filename="gnuplot.txt"
     echo "" > $plot_filename
     touch $plot_filename
-    
+
     variants_array=("$@")
-    for var in "${variants_array[@]}" 
-    do
-        echo -n "$var," >> $plot_filename
-        for (( i=$FROM_TS; i<=$TO_TS; i*=2 )); do
-            #log "Iterate on $var with tile size of \"$i\""
-            value=$(compute $var $i )
-            log "runtime = ${value} variant=$var [ts=$i]"
-            echo -n "$value," >> $plot_filename
+    for (( i=$FROM_TS; i<=$TO_TS; i*=2 )); do
+        value=$(compute $var $i )
+        echo "$i," >> $plot_filename
+
+        for var in "${variants_array[@]}" 
+        do
+            echo -e "[ts=$i] runtime = $value [$var]"
+            echo -n "$var," >> $plot_filename
         done
         echo -e "" >> $plot_filename
     done
