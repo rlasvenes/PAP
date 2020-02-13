@@ -38,13 +38,13 @@ function computeVariants {
 
     variants_array=("$@")
     for (( i=$FROM_TS; i<=$TO_TS; i*=2 )); do
-        value=$(compute $var $i )
         echo "$i," >> $plot_filename
 
         for var in "${variants_array[@]}" 
         do
+            value=$(compute $var $i )
             echo -e "[ts=$i] runtime = $value [$var]"
-            echo -n "$var," >> $plot_filename
+            echo -n "$value," >> $plot_filename
         done
         echo -e "" >> $plot_filename
     done
