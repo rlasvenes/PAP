@@ -1,6 +1,5 @@
 #!/usr/bin/env gnuplot -c
 
-if (strlen(ARG1) == 0) print "Usage: " . ARG0 . " data.txt"; exit
 
 set terminal png
 
