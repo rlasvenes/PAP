@@ -40,7 +40,7 @@ function computeVariants {
     variants_array=("$@")
     for var in "${variants_array[@]}" 
     do
-        echo "$var, " >> $plot_filename
+        echo -n "$var, " >> $plot_filename
         for (( i=$FROM_TS; i<=$TO_TS; i+=$STEP_TS )); do
             #log "Iterate on $var with tile size of \"$i\""
             value=$(compute $var $i )
