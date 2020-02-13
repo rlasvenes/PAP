@@ -9,7 +9,7 @@ VARIANTS=( "seq" "depend" )
 VERBOSE=0
 
 FROM_TS=4
-TO_TS=8
+TO_TS=32
 STEP_TS=4
 
 function usage {
@@ -47,7 +47,7 @@ function computeVariants {
             log "runtime = ${value} variant=$var [ts=$i]"
             echo -n "$value," >> $plot_filename
         done
-        echo -e "\n" >> $plot_filename
+        echo -e "" >> $plot_filename
     done
 }
 
