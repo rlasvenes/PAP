@@ -6,26 +6,43 @@ TILE_SIZE=16
 KERNEL="max"
 NB_SPIRALE=100
 VARIANTS=( "seq" "depend" )
+VERBOSE=1
+
+FROM_TS=4
+TO_TS=32
+STEP_TS=4
 
 function usage {
-    echo -e "Usage: ./$0 "
+    echo -e "Usage: ./$0 [-v]"
+}
+
+function log () {
+    if [[ $VERBOSE -eq 1 ]]; then
+        echo -e "$@"
+    fi
+}
+
+function createGnuplotFile () {
+    touch
 }
 
 function compute {
-    echo "Launching \"$PROG -s $SIZE -k $KERNEL -g $TILE_SIZE -v $1 -a $NB_SPIRALE -n\""
-    filename="${SIZE}_${KERNEL}_${TILE_SIZE}_${NB_SPIRALE}_$1.txt"
+    log "Launching \"$PROG -s $SIZE -k $KERNEL -g $2 -v $1 -a $NB_SPIRALE -n\""
+    filename="${SIZE}_${KERNEL}_$2_${NB_SPIRALE}_$1.txt"
     touch $filename
-    $PROG -s $SIZE -k $KERNEL -g $TILE_SIZE -v $1 -a $NB_SPIRALE -n > $filename 2>&1 
+    $PROG -s $SIZE -k $KERNEL -g $2 -v $1 -a $NB_SPIRALE -n > $filename 2>&1 
     runtime=$(cat $filename | cut -d$'\n' -f3)
-    echo -e "Time for \"$1\" is $runtime"
+    log "Time for \"$1\" is $runtime"
 }
 
 function computeVariants {
     variants_array=("$@")
     for var in "${variants_array[@]}" 
     do
-        echo "Iterate on $var"
-        compute $var
+        for (( i=$FROM_TS; i<=$TO_TS; i+=$STEP_TS )); do
+            log "Iterate on $var with tile size of \"$i\""
+            compute $var $i
+        done
     done
 }
 
