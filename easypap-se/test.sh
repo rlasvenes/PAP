@@ -22,10 +22,6 @@ function log () {
     fi
 }
 
-function createGnuplotFile () {
-    
-}
-
 function compute {
     log "Launching \"$PROG -s $SIZE -k $KERNEL -g $2 -v $1 -a $NB_SPIRALE -n\""
     filename="${SIZE}_${KERNEL}_$2_${NB_SPIRALE}_$1.txt"
