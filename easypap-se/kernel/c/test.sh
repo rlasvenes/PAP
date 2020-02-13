@@ -8,14 +8,14 @@ NB_SPIRALE=100
 VARIANTS=( "seq" "depend" )
 
 function usage {
-    echo -e "Usage: ./$0 [size] [tile_size] [variant] [nb_spirale]"
+    echo -e "Usage: ./$0 "
 }
 
 function compute {
     echo "Launching \"$PROG -s $SIZE -k $KERNEL -g $TILE_SIZE -v $1 -a $NB_SPIRALE -n\""
     filename="${SIZE}_${KERNEL}_${TILE_SIZE}_${NB_SPIRALE}.txt"
     touch $filename
-    $PROG -s $SIZE -k $KERNEL -g $TILE_SIZE -v $VARIANT -a $NB_SPIRALE -n > $filename
+    $PROG -s $SIZE -k $KERNEL -g $TILE_SIZE -v $1 -a $NB_SPIRALE -n > $filename
     runtime=$(cat $filename | cut -d$'\n' -f3)
     echo -e "Time for \"$1\" is $runtime"
 }
