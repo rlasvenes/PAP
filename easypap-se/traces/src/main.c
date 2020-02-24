@@ -14,6 +14,9 @@
 #include "trace_graphics.h"
 #include "trace_record.h"
 
+static int WINDOW_PREFERRED_WIDTH  = 1920;
+static int WINDOW_PREFERRED_HEIGHT = 1024;
+
 static int first_iteration = -1;
 static int last_iteration  = -1;
 static int whole_trace     = 0;
@@ -119,7 +122,7 @@ int main (int argc, char **argv)
 
   trace_data_sync_iterations ();
 
-  trace_graphics_init ();
+  trace_graphics_init (WINDOW_PREFERRED_WIDTH, WINDOW_PREFERRED_HEIGHT);
 
   if (whole_trace)
     trace_graphics_display_all ();
@@ -177,6 +180,15 @@ int main (int argc, char **argv)
         trace_graphics_mouse_up (event.button.x, event.button.y);
       } else if (event.type == SDL_MOUSEWHEEL) {
         trace_graphics_scroll (event.wheel.x);
+      } else if (event.type == SDL_WINDOWEVENT) {
+        switch (event.window.event) {
+        case SDL_WINDOWEVENT_RESIZED:
+          trace_graphics_relayout (event.window.data1, event.window.data2);
+          break;
+        case SDL_WINDOWEVENT_CLOSE:
+          quit = SDL_TRUE;
+          break;
+        }
       }
     }
   } while (!quit);

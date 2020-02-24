@@ -44,7 +44,7 @@ MAKEFILES := Makefile
 
 CC			:= gcc
 
-CFLAGS 		+= -O3 -Wall -Wno-unused-function  #-march=native
+CFLAGS 		+= -O3 -Wall -Wno-unused-function -march=native
 CFLAGS		+= -I./include -I./traces/include
 LDFLAGS		+= -lm
 

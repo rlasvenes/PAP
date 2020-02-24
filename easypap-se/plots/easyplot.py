@@ -33,7 +33,8 @@ fig = creerGraphique(df=df,
                      row=args.row,
                      plottype=args.plottype,
                      yscale=args.yscale,
+                     xscale=args.xscale,
                      height=args.height,
-                     showTitle=args.showTitle)
+                     showParameters=args.showParameters)
 
 engeristrerGraphique(fig)

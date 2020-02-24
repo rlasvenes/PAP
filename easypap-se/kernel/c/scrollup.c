@@ -23,6 +23,24 @@ unsigned scrollup_compute_seq (unsigned nb_iter)
   return 0;
 }
 
+unsigned scrollup_compute_ji (unsigned nb_iter)
+{
+  for (unsigned it = 1; it <= nb_iter; it++) {
+
+    for (int j = 0; j < DIM; j++) {
+      for (int i = 0; i < DIM-1; i++) {
+        next_img (i, j) = cur_img (i+1, j);
+        if (i == DIM-1)
+          next_img (DIM - 1, j) = cur_img (0, j);
+      }
+    }
+
+    swap_images ();
+  }
+
+  return 0;
+}
+
 // Tile inner computation
 static void do_tile_reg (int x, int y, int width, int height)
 {

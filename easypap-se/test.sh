@@ -7,6 +7,7 @@ KERNEL="max"
 NB_SPIRALE=100
 VARIANTS=( "seq" "depend" "tiled" "omp")
 VERBOSE=0
+NB_THREADS=4
 
 FROM_TS=4 # start index of tile size
 TO_TS=32    

@@ -5,7 +5,8 @@
 #include "trace_data.h"
 
 
-void trace_graphics_init (void);
+void trace_graphics_init (unsigned w, unsigned h);
+void trace_graphics_relayout (unsigned w, unsigned h);
 void trace_graphics_setview (int start_iteration, int end_iteration);
 
 void trace_graphics_mouse_moved (int x, int y);
