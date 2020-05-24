@@ -3,6 +3,7 @@
 
 
 #include "global.h"
+#include "arch_flags.h"
 #include "debug.h"
 #include "error.h"
 #include "monitoring.h"

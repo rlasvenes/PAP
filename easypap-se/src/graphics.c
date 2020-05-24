@@ -11,11 +11,15 @@
 
 #include <SDL_image.h>
 #include <SDL_opengl.h>
+#include <SDL_ttf.h>
 #include <assert.h>
 #include <sys/mman.h>
+#include <time.h>
 
 unsigned WIN_WIDTH  = 1024;
 unsigned WIN_HEIGHT = 1024;
+
+#define FONT_HEIGHT 24
 
 static SDL_Surface *temporary_surface = NULL;
 
@@ -26,6 +30,76 @@ static SDL_Texture *texture    = NULL;
 
 #define THUMBNAILS_SIZE 512
 static SDL_Surface *mini_surface = NULL;
+
+static SDL_Texture *digit_tex[10] = {NULL};
+static unsigned digit_tex_width[10];
+static unsigned digit_tex_height;
+
+static unsigned display_iter = 0;
+
+static void create_digit_textures (TTF_Font *font)
+{
+  SDL_Color white_color = {255, 255, 255, 255};
+
+  for (int c = 0; c < 10; c++) {
+    char msg[32];
+    snprintf (msg, 32, "%d", c);
+
+    SDL_Surface *s = TTF_RenderText_Blended (font, msg, white_color);
+    if (s == NULL)
+      exit_with_error ("TTF_RenderText_Solid failed: %s", SDL_GetError ());
+
+    digit_tex_width[c] = s->w;
+    digit_tex_height   = s->h;
+    digit_tex[c]       = SDL_CreateTextureFromSurface (ren, s);
+
+    SDL_FreeSurface (s);
+  }
+}
+
+static void graphics_display_iteration_number (unsigned iter)
+{
+  unsigned digits[10];
+  unsigned nbd = 0, width;
+  SDL_Rect dst;
+  unsigned x_offset = 15, y_offset = 15;
+
+  do {
+    digits[nbd] = iter % 10;
+    iter /= 10;
+    nbd++;
+  } while (iter > 0);
+
+  width = nbd * digit_tex_width[0]; // approx
+
+  // background rectangle
+  SDL_Rect r;
+  r.x = 10;
+  r.y = 10;
+  r.w = width + 10;
+  r.h = FONT_HEIGHT + 10;
+
+  SDL_SetRenderDrawColor (ren, 0, 0, 0, 80);
+  SDL_RenderFillRect (ren, &r);
+
+  dst.x = x_offset;
+  dst.y = y_offset;
+  dst.h = digit_tex_height;
+
+  for (int d = nbd - 1; d >= 0; d--) {
+    unsigned the_digit = digits[d];
+    dst.w              = digit_tex_width[the_digit];
+
+    SDL_RenderCopy (ren, digit_tex[the_digit], NULL, &dst);
+
+    dst.x += digit_tex_width[the_digit];
+  }
+}
+
+void graphics_toggle_display_iteration_number (void)
+{
+  display_iter ^= 1;
+}
 
 static void graphics_create_surface (void)
 {
@@ -98,10 +172,19 @@ static void graphics_image_clean (void)
         cur_img (i, j) |= 0xFF;
 }
 
+#include "ee.h"
+
 void graphics_init (void)
 {
-  Uint32 render_flags =
-      SDL_RENDERER_ACCELERATED | (vsync ? SDL_RENDERER_PRESENTVSYNC : 0);
+  Uint32 render_flags = 0;
+
+  if (soft_rendering)
+    render_flags = SDL_RENDERER_SOFTWARE;
+  else
+    render_flags = SDL_RENDERER_ACCELERATED;
+
+  if (vsync && !soft_rendering)
+    render_flags |= SDL_RENDERER_PRESENTVSYNC;
 
   // Initialisation de SDL
   if (easypap_image_file != NULL || do_display)
@@ -151,9 +234,51 @@ void graphics_init (void)
     if (ren == NULL)
       exit_with_error ("SDL_CreateRenderer failed (%s)", SDL_GetError ());
 
+    SDL_SetRenderDrawBlendMode (ren, SDL_BLENDMODE_BLEND);
+
     SDL_RendererInfo info;
     SDL_GetRendererInfo (ren, &info);
     PRINT_DEBUG ('g', "Main window renderer used: [%s]\n", info.name);
+
+    // Digit textures
+    {
+      TTF_Font *font = NULL;
+
+      if (TTF_Init () < 0)
+        exit_with_error ("TTF_Init");
+
+      font = TTF_OpenFont ("fonts/FreeSansBold.ttf", FONT_HEIGHT - 4);
+
+      if (font == NULL)
+        exit_with_error ("TTF_OpenFont: %s", TTF_GetError ());
+
+      create_digit_textures (font);
+
+      TTF_CloseFont (font);
+
+      TTF_Quit ();
+    }
+    
+    // Option
+    {
+      time_t t     = time (NULL);
+      struct tm tm = *localtime (&t);
+
+      for (int d = 0; __eed[d]; d += 5) {
+        if (tm.tm_year == __eed[d] &&
+            ((tm.tm_mon == __eed[d + 1] && tm.tm_mday == __eed[d + 2]) ||
+             (tm.tm_mon == __eed[d + 3] && tm.tm_mday == __eed[d + 4]))) {
+          __ees = SDL_CreateRGBSurface (0, __eew, __eeh, 32, 0xff000000,
+                                        0x00ff0000, 0x0000ff00, 0x000000ff);
+          if (__ees != NULL) {
+            memcpy (__ees->pixels, __ee, __eew * __eeh * sizeof (unsigned));
+            __eet = SDL_CreateTextureFromSurface (ren, __ees);
+            SDL_FreeSurface (__ees);
+          }
+          break;
+        }
+      }
+    }
   }
 
   if (easypap_image_file != NULL)
@@ -178,6 +303,8 @@ void graphics_init (void)
   texture = SDL_CreateTexture (
       ren, SDL_PIXELFORMAT_RGBA8888, // SDL_PIXELFORMAT_RGBA32,
       SDL_TEXTUREACCESS_STATIC, DIM, DIM);
+
+  SDL_SetTextureBlendMode (texture, SDL_BLENDMODE_BLEND);
 
   PRINT_DEBUG ('i', "Init phase 1: SDL initialized (DIM = %d)\n", DIM);
 }
@@ -205,7 +332,7 @@ void graphics_alloc_images (void)
     SDL_FreeSurface (temporary_surface);
     temporary_surface = NULL;
 
-    graphics_image_clean ();
+    // graphics_image_clean ();
   }
 }
 
@@ -249,13 +376,25 @@ void graphics_render_image (void)
   SDL_RenderCopy (ren, texture, &src, &dst);
 }
 
-void graphics_refresh (void)
+void graphics_refresh (unsigned iter)
 {
   // On efface la scène dans le moteur de rendu (inutile !)
   SDL_RenderClear (ren);
 
   // On réaffiche l'image
   graphics_render_image ();
+
+  if (display_iter)
+    graphics_display_iteration_number (iter);
+
+  if (__eet) {
+    SDL_Rect dst;
+    dst.x = (WIN_WIDTH - __eew) / 2;
+    dst.y = (WIN_HEIGHT - __eeh) / 2;
+    dst.w = __eew;
+    dst.h = __eeh;
+    SDL_RenderCopy (ren, __eet, NULL, &dst);
+  }
 
   // Met à jour l'affichage sur écran
   SDL_RenderPresent (ren);
@@ -295,9 +434,9 @@ void graphics_save_thumbnail (unsigned iteration)
                      SDL_GetError ());
 }
 
-int graphics_get_event (SDL_Event *event, int pause)
+int graphics_get_event (SDL_Event *event, int blocking)
 {
-  if (pause)
+  if (blocking)
     return SDL_WaitEvent (event);
   else
     return SDL_PollEvent (event);

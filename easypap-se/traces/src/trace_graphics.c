@@ -155,7 +155,7 @@ static void layout_place_buttons (void)
 
 static void layout_recompute (void)
 {
-  unsigned need_left, need_right, max_need;
+  unsigned need_left;
 
   if (nb_traces == 1) {
     // Compute preview size
@@ -197,8 +197,6 @@ static void layout_recompute (void)
                   min (WINDOW_WIDTH / 4, (WINDOW_HEIGHT - TOP_MARGIN -
                                           BOTTOM_MARGIN - INTERTRACE_MARGIN) /
                                              2)));
-    need_right =
-        TOP_MARGIN + 2 * PREVIEW_DIM + INTERTRACE_MARGIN + BOTTOM_MARGIN;
 
     // See how much space we have for GANTT chart
     unsigned space =
@@ -217,7 +215,6 @@ static void layout_recompute (void)
     GANTT_HEIGHT = (trace[0].nb_cores + trace[1].nb_cores) * CPU_ROW_HEIGHT +
                    INTERTRACE_MARGIN;
     need_left = TOP_MARGIN + GANTT_HEIGHT + BOTTOM_MARGIN;
-    max_need  = max (need_left, need_right);
 
     if (WINDOW_HEIGHT > need_left)
       padding = WINDOW_HEIGHT - need_left;

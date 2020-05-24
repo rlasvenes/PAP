@@ -8,21 +8,53 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include "graphics.h"
 #include "cpustat.h"
 #include "debug.h"
 #include "error.h"
 #include "global.h"
 #include "gmonitor.h"
+#include "graphics.h"
 #include "monitoring.h"
 #include "trace_common.h"
+
+#define LOAD_INTENSITY
+
+#ifdef LOAD_INTENSITY
+
+static long prev_max_duration = 0;
+static long max_duration      = 0;
+static unsigned heat_mode     = 0;
+
+static const char LogTable256[256] = {
+#define LT(n) n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n
+    -1,     0,      1,      1,      2,      2,      2,      2,
+    3,      3,      3,      3,      3,      3,      3,      3,
+    LT (4), LT (5), LT (5), LT (6), LT (6), LT (6), LT (6), LT (7),
+    LT (7), LT (7), LT (7), LT (7), LT (7), LT (7), LT (7)};
+
+static inline unsigned mylog2 (unsigned v)
+{
+  unsigned r; // r will be lg(v)
+  unsigned int t;
+
+  if ((t = (v >> 16)))
+    r = 16 + LogTable256[t];
+  else if ((t = (v >> 8)))
+    r = 8 + LogTable256[t];
+  else
+    r = LogTable256[v];
+
+  return r;
+}
+
+#endif
 
 unsigned do_gmonitor = 0;
 
 static unsigned MONITOR_WIDTH  = 0;
 static unsigned MONITOR_HEIGHT = 0;
 
-static unsigned NBCORES      = 1;
+static unsigned NBCORES = 1;
 
 static SDL_Window *win      = NULL;
 static SDL_Renderer *ren    = NULL;
@@ -47,7 +79,7 @@ void gmonitor_init (int x, int y)
     exit_with_error ("SDL_CreateWindow failed (%s)", SDL_GetError ());
 
   // Initialisation du moteur de rendu
-  ren = SDL_CreateRenderer (win, -1, SDL_RENDERER_ACCELERATED);
+  ren = SDL_CreateRenderer (win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
   if (ren == NULL)
     exit_with_error ("SDL_CreateRenderer failed (%s)", SDL_GetError ());
 
@@ -66,6 +98,8 @@ void gmonitor_init (int x, int y)
       SDL_TEXTUREACCESS_STATIC, DIM, DIM);
   if (texture == NULL)
     exit_with_error ("SDL_CreateTexture failed (%s)", SDL_GetError ());
+
+  SDL_SetTextureBlendMode (texture, SDL_BLENDMODE_BLEND);
 
   if (TTF_Init () < 0)
     exit_with_error ("TTF_Init failed (%s)", TTF_GetError ());
@@ -86,6 +120,11 @@ void gmonitor_init (int x, int y)
 void __gmonitor_start_iteration (long time)
 {
   cpustat_reset (time);
+
+#ifdef LOAD_INTENSITY
+  prev_max_duration = max_duration;
+  max_duration      = 0;
+#endif
 }
 
 void __gmonitor_start_tile (long time, int who)
@@ -96,11 +135,28 @@ void __gmonitor_start_tile (long time, int who)
 void __gmonitor_end_tile (long time, int who, int x, int y, int width,
                           int height)
 {
-  cpustat_finish_work (time, who);
+  long duration __attribute__ ((unused)) = cpustat_finish_work (time, who);
+  unsigned color                         = cpu_colors[who % MAX_COLORS];
+
+#ifdef LOAD_INTENSITY
+  if (duration > max_duration)
+    max_duration = duration;
+
+  if (heat_mode && prev_max_duration) { // not the first iteration
+    if (duration <= prev_max_duration) {
+      long intensity = 8191 * duration / prev_max_duration;
+      // log2(intensity) is in [0..12]
+      // so 20 * log2(intensity) + 15 is in [15..255]
+      unsigned char alpha = 20 * mylog2 (intensity) + 15;
+
+      color = (color & 0xFFFFFF00) | alpha;
+    }
+  }
+#endif
 
   for (int i = y; i < y + height; i++)
     for (int j = x; j < x + width; j++)
-      trace_img[i * DIM + j] = cpu_colors[who % MAX_COLORS];
+      trace_img[i * DIM + j] = color;
 
   cpustat_start_idle (what_time_is_it (), who);
 }
@@ -156,4 +212,14 @@ void gmonitor_clean ()
   cpustat_clean ();
 
   TTF_Quit ();
+}
+
+void gmonitor_toggle_heat_mode (void)
+{
+#ifdef LOAD_INTENSITY
+  if (do_gmonitor) {
+    heat_mode ^= 1;
+    printf ("< Heatmap mode set to: %s >\n", heat_mode ? "ON" : "OFF");
+  }
+#endif
 }

@@ -7,6 +7,7 @@
 
 extern unsigned do_display;
 extern unsigned vsync;
+extern unsigned soft_rendering;
 extern unsigned refresh_rate;
 extern unsigned do_first_touch;
 extern int max_iter;

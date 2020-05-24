@@ -42,43 +42,6 @@ int tile_down_right (int x, int y, int w, int h, int cpu)
   return change;
 }
 
-int tile_down_right_omp (int x, int y, int w, int h, int cpu)
-{
-  int change = 0;
-
-  monitoring_start_tile (cpu);
-
-  #pragma omp parallel for
-  for (int i = y; i < y + h; i++)
-    for (int j = x; j < x + w; j++)
-      if (cur_img (i, j)) {
-        if (i > 0 && j > 0) {
-          uint32_t m = max (cur_img (i - 1, j), cur_img (i, j - 1));
-          if (m > cur_img (i, j)) {
-            change     = 1;
-            cur_img (i, j) = m;
-          }
-        } else if (j > 0) {
-          uint32_t m = cur_img (i, j - 1);
-          if (m > cur_img (i, j)) {
-            change     = 1;
-            cur_img (i, j) = m;
-          }
-        } else if (i > 0) {
-          uint32_t m = cur_img (i - 1, j);
-          if (m > cur_img (i, j)) {
-            change     = 1;
-            cur_img (i, j) = m;
-          }
-        }
-      }
-
-  monitoring_end_tile (x, y, w, h, cpu);
-
-  return change;
-}
-
-
 // We propagate the max color up-left. This is the expensive implementation
 // which constantly checks border conditions...
 int tile_up_left (int x, int y, int w, int h, int cpu)
@@ -87,41 +50,6 @@ int tile_up_left (int x, int y, int w, int h, int cpu)
 
   monitoring_start_tile (cpu);
 
-  for (int i = y + h - 1; i >= y; i--)
-    for (int j = x + w - 1; j >= x; j--)
-      if (cur_img (i, j)) {
-        if (i < DIM - 1 && j < DIM - 1) {
-          uint32_t m = max (cur_img (i + 1, j), cur_img (i, j + 1));
-          if (m > cur_img (i, j)) {
-            change     = 1;
-            cur_img (i, j) = m;
-          }
-        } else if (j < DIM - 1) {
-          uint32_t m = cur_img (i, j + 1);
-          if (m > cur_img (i, j)) {
-            change     = 1;
-            cur_img (i, j) = m;
-          }
-        } else if (i < DIM - 1) {
-          uint32_t m = cur_img (i + 1, j);
-          if (m > cur_img (i, j)) {
-            change     = 1;
-            cur_img (i, j) = m;
-          }
-        }
-      }
-
-  monitoring_end_tile (x, y, w, h, cpu);
-
-  return change;
-}
-
-int tile_up_left_omp (int x, int y, int w, int h, int cpu)
-{
-  int change = 0;
-
-  monitoring_start_tile (cpu);
-  #pragma omp parallel for
   for (int i = y + h - 1; i >= y; i--)
     for (int j = x + w - 1; j >= x; j--)
       if (cur_img (i, j)) {
@@ -167,18 +95,6 @@ unsigned max_compute_seq (unsigned nb_iter)
   return 0;
 }
 
-unsigned max_compute_omp (unsigned nb_iter)
-{
-  for (unsigned it = 1; it <= nb_iter; it++) {
-
-    if ((tile_down_right_omp (0, 0, DIM, DIM, 0) |
-         tile_up_left_omp (0, 0, DIM, DIM, 0)) == 0)
-      return it;
-  }
-
-  return 0;
-}
-
 ///////////////////////////// Tiled sequential version (tiled)
 // Suggested cmdline(s):
 // ./run -l images/spirale.png -k max -v tiled -g 16 -m
@@ -201,47 +117,6 @@ unsigned max_compute_tiled (unsigned nb_iter)
         change |= tile_up_left (j * TILE_SIZE, i * TILE_SIZE, TILE_SIZE,
                                     TILE_SIZE, 0);
 
-    if (!change) {
-      res = it;
-      break;
-    }
-  }
-
-  return res;
-}
-
-
-//speed up max = GRAIN^2 / 2*GRAIN (si nb processeur supossé)
-unsigned max_compute_depend (unsigned nb_iter)
-{
-  unsigned res = 0;
-
-  int br[GRAIN][GRAIN+1];
-  int ul[GRAIN][GRAIN+1];
-
-  for (unsigned it = 1; it <= nb_iter; it++) {
-    int change = 0;
-
-    // Bottom-right propagation
-    #pragma omp parallel
-    #pragma omp single
-    {
-      for (int i = 0; i < GRAIN; i++)
-        for (int j = 0; j < GRAIN; j++) {
-          #pragma omp task firstprivate(i,j) depend(in:br[i-1][j], br[i][j-1]) depend(out:br[i][j])
-          change |= tile_down_right (j * TILE_SIZE, i * TILE_SIZE, TILE_SIZE, TILE_SIZE, omp_get_thread_num());
-        }
-
-      #pragma omp taskwait
-          
-      // Up-left propagation
-      for (int i = GRAIN - 1; i >= 0; i--)
-        for (int j = GRAIN - 1; j >= 0; j--) {
-          #pragma omp task firstprivate(i,j) depend(in:ul[i+1][j], ul[i][j+1]) depend(out:ul[i][j])
-          change |= tile_up_left (j * TILE_SIZE, i * TILE_SIZE, TILE_SIZE, TILE_SIZE, omp_get_thread_num());
-        }
-    }
-    #pragma omp taskwait
     if (!change) {
       res = it;
       break;

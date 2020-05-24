@@ -14,4 +14,10 @@ extern unsigned cpu_colors[];
 #define TRACE_END_ITER     0x107
 #define TRACE_LABEL        0x108
 
+#define DEFAULT_EZV_TRACE_DIR "traces/data"
+#define DEFAULT_EZV_TRACE_BASE "ezv_trace_current"
+#define DEFAULT_EZV_TRACE_EXT  ".evt"
+#define DEFAULT_EZV_TRACE_FILE DEFAULT_EZV_TRACE_BASE DEFAULT_EZV_TRACE_EXT
+#define DEFAULT_EASYVIEW_FILE DEFAULT_EZV_TRACE_DIR "/" DEFAULT_EZV_TRACE_FILE
+
 #endif

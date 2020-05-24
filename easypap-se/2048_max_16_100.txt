@@ -1,1 +1,0 @@
-gcc -o obj/ocl.o -O3 -Wall -Wno-unused-function   -I./include -I./traces/include -rdynamic -DENABLE_VECTO -DVEC_SIZE=8 -mavx2 -mfma -DENABLE_MONITORING -fopenmp -DCL_SILENCE_DEPRECATION -DENABLE_SDL -DENABLE_FUT -DENABLE_MPI  -c src/ocl.c

@@ -23,9 +23,9 @@ unsigned SIZE  = 0;
 static size_t max_workgroup_size = 0;
 
 cl_int err;
-static cl_device_id devices[MAX_DEVICES];
+static cl_platform_id chosen_platform = NULL;
+static cl_device_id chosen_device     = NULL;
 static cl_program program; // compute program
-static unsigned dev = 0;
 
 cl_context context;
 cl_kernel update_kernel;
@@ -38,7 +38,8 @@ static size_t file_size (const char *filename)
   struct stat sb;
 
   if (stat (filename, &sb) < 0)
-    exit_with_error ("Cannot access \"%s\" kernel file (%s)", filename, strerror (errno));
+    exit_with_error ("Cannot access \"%s\" kernel file (%s)", filename,
+                     strerror (errno));
 
   return sb.st_size;
 }
@@ -57,7 +58,8 @@ static char *file_load (const char *filename)
 
   f = fopen (filename, "r");
   if (f == NULL)
-    exit_with_error ("Cannot open \"%s\" file (%s)", filename, strerror (errno));
+    exit_with_error ("Cannot open \"%s\" file (%s)", filename,
+                     strerror (errno));
 
   r = fread (b, s, 1, f);
   if (r != 1)
@@ -84,24 +86,130 @@ static void ocl_release (void)
   check (err, "Failed to release lock");
 }
 
-void ocl_init (void)
+void ocl_show_config (int quit, int verbose)
 {
-  char name[1024], vendor[1024];
   cl_platform_id pf[MAX_PLATFORMS];
-  cl_uint nb_platforms = 0;
+  cl_int nbp      = 0;
+  cl_int chosen_p = -1, chosen_d = -1;
+  char *glRenderer = NULL;
+  char *str        = NULL;
 
-  cl_device_type dtype;
-  cl_uint nb_devices   = 0;
-  char *str            = NULL;
-  unsigned platform_no = 0;
+  if (quit)
+    verbose = 1;
+
+  if (do_display)
+    glRenderer = (char *)glGetString (GL_RENDERER);
+
+  // Get list of platforms
+  err = clGetPlatformIDs (MAX_PLATFORMS, pf, (cl_uint *)&nbp);
+  check (err, "Failed to get platform IDs");
+
+  if (verbose)
+    printf ("%d OpenCL platforms detected\n", nbp);
 
   str = getenv ("PLATFORM");
   if (str != NULL)
-    platform_no = atoi (str);
+    chosen_p = atoi (str);
+
+  if (chosen_p >= nbp)
+    exit_with_error (
+        "Requested platform number (%d) should be in [0..%d] range", chosen_p,
+        nbp - 1);
 
   str = getenv ("DEVICE");
   if (str != NULL)
-    dev = atoi (str);
+    chosen_d = atoi (str);
+
+  if (chosen_p == -1 && chosen_d != -1)
+    chosen_p = 0;
+
+  // Go through the list of platforms
+  for (cl_uint p = 0; p < nbp; p++) {
+    char name[1024], vendor[1024];
+    cl_device_id devices[MAX_DEVICES];
+    cl_int nbd = 0;
+    cl_device_type dtype;
+
+    if (chosen_p == p)
+      chosen_platform = pf[p];
+
+    err = clGetPlatformInfo (pf[p], CL_PLATFORM_NAME, 1024, name, NULL);
+    check (err, "Failed to get Platform Info");
+
+    err = clGetPlatformInfo (pf[p], CL_PLATFORM_VENDOR, 1024, vendor, NULL);
+    check (err, "Failed to get Platform Info");
+
+    if (verbose)
+      printf ("Platform %d: %s (%s)\n", p, name, vendor);
+
+    err = clGetDeviceIDs (pf[p], CL_DEVICE_TYPE_ALL, MAX_DEVICES, devices,
+                          (cl_uint *)&nbd);
+
+    if (chosen_p == p && chosen_d >= nbd)
+      exit_with_error (
+          "Requested device number (%d) should be in [0..%d] range", chosen_d,
+          nbd - 1);
+
+    // The chosen platform provides only one device, so we take device[0]
+    if (chosen_p == p && chosen_d == -1 && nbd == 1) {
+      chosen_d      = 0;
+      chosen_device = devices[0];
+    }
+
+    // Go through the list of devices for platform p
+    for (cl_uint d = 0; d < nbd; d++) {
+      err = clGetDeviceInfo (devices[d], CL_DEVICE_NAME, 1024, name, NULL);
+      check (err, "Cannot get type of device");
+
+      err = clGetDeviceInfo (devices[d], CL_DEVICE_TYPE,
+                             sizeof (cl_device_type), &dtype, NULL);
+      check (err, "Cannot get type of device");
+
+      // If user specified no PLATFORM/DEVICE, just take the first GPU found
+      if (dtype == CL_DEVICE_TYPE_GPU && (chosen_p == -1 || chosen_p == p) &&
+          (chosen_d == -1)) {
+        chosen_p        = p;
+        chosen_platform = pf[p];
+        chosen_d        = d;
+        chosen_device = devices[d];
+      }
+
+      if (chosen_p == p) {
+        if (chosen_d == d)
+          chosen_device = devices[d];
+        else if (chosen_d == -1 && d == nbd - 1) { // Last chance to select device
+          chosen_d      = 0;
+          chosen_device = devices[0];
+        }
+      }
+
+      if (verbose)
+        printf ("%s Device %d : %s [%s]\n",
+                (chosen_p == p && chosen_d == d) ? "+++" : "---", d,
+                (dtype == CL_DEVICE_TYPE_GPU) ? "GPU" : "CPU", name);
+      else if (chosen_p == p && chosen_d == d)
+        printf ("Using OpenCL Device : %s [%s]\n",
+                (dtype == CL_DEVICE_TYPE_GPU) ? "GPU" : "CPU", name);
+    }
+  }
+
+  if (verbose && glRenderer != NULL)
+    printf ("Note: OpenGL renderer uses [%s]\n", glRenderer);
+
+  if (quit)
+    exit (0);
+}
+
+void ocl_init (int show_config_and_quit)
+{
+  char *str = NULL;
+
+  ocl_show_config (show_config_and_quit,
+                   debug_flags != NULL && debug_enabled ('o') /* verbose */);
+
+  if (chosen_device == NULL)
+    exit_with_error ("Device could not be automatically chosen: please use "
+                     "PLATFORM and DEVICE to specify target");
 
   str = getenv ("SIZE");
   if (str != NULL)
@@ -112,50 +220,7 @@ void ocl_init (void)
   if (SIZE > DIM)
     exit_with_error ("SIZE (%d) cannot exceed DIM (%d)", SIZE, DIM);
 
-  // Get list of OpenCL platforms detected
-  //
-  err = clGetPlatformIDs (MAX_PLATFORMS, pf, &nb_platforms);
-  check (err, "Failed to get platform IDs");
-
-  PRINT_DEBUG ('o', "%d OpenCL platforms detected:\n", nb_platforms);
-
-  if (platform_no >= nb_platforms)
-    exit_with_error ("Platform number #%d too high", platform_no);
-
-  err = clGetPlatformInfo (pf[platform_no], CL_PLATFORM_NAME, 1024, name, NULL);
-  check (err, "Failed to get Platform Info");
-
-  err = clGetPlatformInfo (pf[platform_no], CL_PLATFORM_VENDOR, 1024, vendor,
-                           NULL);
-  check (err, "Failed to get Platform Info");
-
-  printf ("Using platform %d: %s - %s\n", platform_no, name, vendor);
-
-  // Get list of devices
-  //
-  err = clGetDeviceIDs (pf[platform_no], CL_DEVICE_TYPE_GPU, MAX_DEVICES,
-                        devices, &nb_devices);
-  PRINT_DEBUG ('o', "nb devices = %d\n", nb_devices);
-
-  if (nb_devices == 0) {
-    exit_with_error ("No appropriate device found on platform %d (%s - %s). "
-                     "Try PLATFORM=<p> ./run args...",
-                     platform_no, name, vendor);
-  }
-  if (dev >= nb_devices)
-    exit_with_error ("Device number #%d too high", dev);
-
-  err = clGetDeviceInfo (devices[dev], CL_DEVICE_NAME, 1024, name, NULL);
-  check (err, "Cannot get type of device");
-
-  err = clGetDeviceInfo (devices[dev], CL_DEVICE_TYPE, sizeof (cl_device_type),
-                         &dtype, NULL);
-  check (err, "Cannot get type of device");
-
-  printf ("Using Device %d: %s [%s]\n", dev,
-          (dtype == CL_DEVICE_TYPE_GPU) ? "GPU" : "CPU", name);
-
-  err = clGetDeviceInfo (devices[dev], CL_DEVICE_MAX_WORK_GROUP_SIZE,
+  err = clGetDeviceInfo (chosen_device, CL_DEVICE_MAX_WORK_GROUP_SIZE,
                          sizeof (size_t), &max_workgroup_size, NULL);
   check (err, "Cannot get max workgroup size");
 
@@ -174,23 +239,24 @@ void ocl_init (void)
         CL_GLX_DISPLAY_KHR,
         (cl_context_properties)glXGetCurrentDisplay (),
         CL_CONTEXT_PLATFORM,
-        (cl_context_properties)pf[platform_no],
+        (cl_context_properties)chosen_platform,
         0};
 #endif
 
-    context = clCreateContext (properties, 1, &devices[dev], NULL, NULL, &err);
+    context = clCreateContext (properties, 1, &chosen_device, NULL, NULL, &err);
   } else
 #endif // ENABLE_SDL
-    context = clCreateContext (NULL, 1, &devices[dev], NULL, NULL, &err);
+    context = clCreateContext (NULL, 1, &chosen_device, NULL, NULL, &err);
 
-
-  check (err, "Failed to create compute context");
+  check (err, "Failed to create compute context. Please make sure OpenCL and "
+              "OpenGL both use the same device (--show-ocl).");
 
   // Create a command queue
   //
-  queue = clCreateCommandQueue (context, devices[dev],
+  queue = clCreateCommandQueue (context, chosen_device,
                                 CL_QUEUE_PROFILING_ENABLE, &err);
-  check (err, "Failed to create command queue");
+  check (err, "Failed to create command queue. Please make sure OpenCL and "
+              "OpenGL both use the same device (--show-ocl).");
 
   PRINT_DEBUG ('i', "Init phase 2: OpenCL initialized\n");
 }
@@ -278,14 +344,14 @@ void ocl_send_image (unsigned *image)
     {
       size_t len;
 
-      clGetProgramBuildInfo (program, devices[dev], CL_PROGRAM_BUILD_LOG, 0,
+      clGetProgramBuildInfo (program, chosen_device, CL_PROGRAM_BUILD_LOG, 0,
                              NULL, &len);
 
-      if (len >= 1 && len <= 2048) {
+      if (len > 1 && len <= 2048) {
         char buffer[len];
 
         fprintf (stderr, "--- OpenCL Compiler log ---\n");
-        clGetProgramBuildInfo (program, devices[dev], CL_PROGRAM_BUILD_LOG,
+        clGetProgramBuildInfo (program, chosen_device, CL_PROGRAM_BUILD_LOG,
                                sizeof (buffer), buffer, NULL);
         fprintf (stderr, "%s\n", buffer);
         fprintf (stderr, "---------------------------\n");

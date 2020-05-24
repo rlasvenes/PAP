@@ -1,5 +1,4 @@
 
-
 #include "easypap.h"
 
 #include <math.h>
@@ -41,14 +40,14 @@ unsigned spin_compute_seq (unsigned nb_iter)
 
     for (int i = 0; i < DIM; i++)
       for (int j = 0; j < DIM; j++)
-        if (j < DIM/2 || i < DIM/2)
-          cur_img (i, j) = compute_color (i, j);
+        cur_img (i, j) = compute_color (i, j);
 
     rotate (); // Slightly increase the base angle
   }
 
   return 0;
 }
+
 
 // Tile inner computation
 static void do_tile_reg (int x, int y, int width, int height)
@@ -74,6 +73,19 @@ static void do_tile (int x, int y, int width, int height, int who)
 }
 
 
+unsigned spin_compute_line (unsigned nb_iter)
+{
+  for (unsigned it = 1; it <= nb_iter; it++) {
+
+    for (int i = 0; i < DIM; i++)
+      do_tile (0, i, DIM, 1, omp_get_thread_num ());
+
+    rotate (); // Slightly increase the base angle
+  }
+
+  return 0;
+}
+
 ///////////////////////////// Tiled sequential version (tiled)
 // Suggested cmdline(s):
 // ./run -k spin -v tiled -g 16 -m
@@ -86,7 +98,6 @@ unsigned spin_compute_tiled (unsigned nb_iter)
 
     for (int y = 0; y < DIM; y += TILE_SIZE)
       for (int x = 0; x < DIM; x += TILE_SIZE)
-        //if (((x + y) / TILE_SIZE) % 2 == 0)
         do_tile (x, y, TILE_SIZE, TILE_SIZE, 0 /* CPU id */);
 
     rotate ();
@@ -95,36 +106,50 @@ unsigned spin_compute_tiled (unsigned nb_iter)
   return 0;
 }
 
-unsigned spin_compute_omp (unsigned nb_iter)
+///////////////////////////// MPI version (mpi)
+// Suggested cmdline(s):
+// ./run -k spin -v mpi -mpi "-np 2" -d M -m
+//
+#ifdef ENABLE_MPI
+
+static int mpi_y    = -1;
+static int mpi_h    = -1;
+static int mpi_rank = -1;
+static int mpi_size = -1;
+
+void spin_init_mpi (void)
+{
+  easypap_check_mpi (); // check if MPI was correctly configured
+
+  MPI_Comm_rank (MPI_COMM_WORLD, &mpi_rank);
+  MPI_Comm_size (MPI_COMM_WORLD, &mpi_size);
+
+  if (mpi_size & (mpi_size - 1))
+    exit_with_error ("This implementation requires 'MPI_Comm_size' to be "
+                     "a power of two");
+
+  mpi_y = mpi_rank * (DIM / mpi_size);
+  mpi_h = (DIM / mpi_size);
+
+  PRINT_DEBUG ('M', "In charge of slice [%d-%d]\n", mpi_y, mpi_y + mpi_h - 1);
+}
+
+unsigned spin_compute_mpi (unsigned nb_iter)
 {
   for (unsigned it = 1; it <= nb_iter; it++) {
 
-    #pragma omp parallel 
-    for (int y = 0; y < DIM; y += TILE_SIZE)
-      #pragma omp for 
-      for (int x = 0; x < DIM; x += TILE_SIZE)
-        do_tile (x, y, TILE_SIZE, TILE_SIZE, omp_get_thread_num());
+    do_tile (0, mpi_y, DIM, mpi_h, 0);
 
     rotate ();
   }
 
-  return 0;
-}
-
-unsigned spin_compute_omp_tiled (unsigned nb_iter)
-{
-  for (unsigned it = 1; it <= nb_iter; it++) {
-
-    #pragma omp parallel for collapse(2) schedule(runtime)
-    for (int y = 0; y < DIM; y += TILE_SIZE)
-      for (int x = 0; x < DIM; x += TILE_SIZE)
-        do_tile (x, y, TILE_SIZE, TILE_SIZE, omp_get_thread_num());
-
-    rotate ();
-  }
+  MPI_Gather ((mpi_rank == 0 ? MPI_IN_PLACE : image + mpi_y * DIM), mpi_h * DIM,
+              MPI_INT, image, mpi_h * DIM, MPI_INT, 0, MPI_COMM_WORLD);
 
   return 0;
 }
+
+#endif
 
 //////////////////////////////////////////////////////////////////////////
 

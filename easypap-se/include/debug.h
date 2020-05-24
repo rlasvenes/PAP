@@ -21,12 +21,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "global.h"
+
 void debug_init (char *flags);
 int debug_enabled (char flag);
 
 extern char *debug_flags;
-
-extern unsigned easypap_mpirun;
 
 #define PRINT_DEBUG(flag, format, ...)                                         \
   do {                                                                         \

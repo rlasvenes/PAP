@@ -1,11 +1,9 @@
 #ifndef TRACE_RECORD_IS_DEF
 #define TRACE_RECORD_IS_DEF
 
-#define DEFAULT_EZV_TRACE_DIR "traces/data"
-#define DEFAULT_EZV_TRACE_BASE "ezv_trace_current"
-#define DEFAULT_EZV_TRACE_EXT  ".evt"
-#define DEFAULT_EZV_TRACE_FILE DEFAULT_EZV_TRACE_BASE DEFAULT_EZV_TRACE_EXT
-#define DEFAULT_EASYVIEW_FILE DEFAULT_EZV_TRACE_DIR "/" DEFAULT_EZV_TRACE_FILE
+#include "trace_common.h"
+
+#ifdef ENABLE_TRACE
 
 extern unsigned do_trace;
 
@@ -40,5 +38,16 @@ void trace_record_finalize (void);
     if (do_trace)                                                              \
       __trace_record_end_tile ((t), (c), (x), (y), (w), (h));                  \
   } while (0)
+
+#else
+
+#define do_trace (unsigned)0
+
+#define trace_record_start_iteration(t) (void)0
+#define trace_record_end_iteration(t) (void)0
+#define trace_record_start_tile(t, c) (void)0
+#define trace_record_end_tile(t, c, x, y, w, h) (void)0
+
+#endif
 
 #endif

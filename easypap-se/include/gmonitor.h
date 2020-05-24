@@ -5,6 +5,7 @@
 
 void gmonitor_init (int x, int y);
 void gmonitor_clean ();
+void gmonitor_toggle_heat_mode (void);
 
 void __gmonitor_start_iteration (long time);
 void __gmonitor_end_iteration (long time);

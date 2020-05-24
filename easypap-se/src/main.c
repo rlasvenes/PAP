@@ -15,21 +15,18 @@
 
 #include "constants.h"
 #include "cpustat.h"
-#include "debug.h"
-#include "error.h"
-#include "global.h"
+#include "easypap.h"
 #include "graphics.h"
 #include "hooks.h"
-#include "monitoring.h"
-#include "ocl.h"
 #include "trace_record.h"
 
 #define DEFAULT_GRAIN 8
 
-int max_iter          = 0;
-unsigned refresh_rate = -1;
-unsigned do_display   = 1;
-unsigned vsync        = 1;
+int max_iter            = 0;
+unsigned refresh_rate   = -1;
+unsigned do_display     = 1;
+unsigned vsync          = 1;
+unsigned soft_rendering = 0;
 
 static char *progname    = NULL;
 char *variant_name       = NULL;
@@ -51,6 +48,7 @@ static unsigned nb_cores                                   = 1;
 unsigned do_first_touch                                    = 0;
 static unsigned do_dump __attribute__ ((unused))           = 0;
 static unsigned do_thumbs __attribute__ ((unused))         = 0;
+static unsigned show_ocl_config                            = 0;
 
 static hwloc_topology_t topology;
 
@@ -62,6 +60,12 @@ unsigned easypap_requested_number_of_threads (void)
     return easypap_number_of_cores ();
   else
     return atoi (str);
+}
+
+char *easypap_omp_schedule (void)
+{
+  char *str = getenv ("OMP_SCHEDULE");
+  return (str == NULL) ? "" : str;
 }
 
 unsigned easypap_number_of_cores (void)
@@ -109,7 +113,7 @@ static void update_refresh_rate (int p)
 
   i_refresh_rate += p;
   refresh_rate = tab_refresh_rate[i_refresh_rate];
-  printf ("\nrefresh rate = %d \n", refresh_rate);
+  printf ("< Refresh rate set to: %d >\n", refresh_rate);
 }
 
 static void output_perf_numbers (long time_in_us, unsigned nb_iter)
@@ -118,19 +122,22 @@ static void output_perf_numbers (long time_in_us, unsigned nb_iter)
   struct utsname s;
 
   if (f == NULL)
-    exit_with_error ("Cannot open \"%s\" file (%s)", output_file, strerror (errno));
+    exit_with_error ("Cannot open \"%s\" file (%s)", output_file,
+                     strerror (errno));
 
   if (ftell (f) == 0) {
-    fprintf (f, "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s\n", "machine", "dim", "grain",
-             "threads", "kernel", "variant", "iterations", "label", "arg", "time");
+    fprintf (f, "%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s\n", "machine", "dim", "grain",
+             "threads", "kernel", "variant", "iterations", "schedule", "label",
+             "arg", "time");
   }
 
   if (uname (&s) < 0)
     exit_with_error ("uname failed (%s)", strerror (errno));
 
-  fprintf (f, "%s;%u;%u;%u;%s;%s;%u;%s;%s;%ld\n", s.nodename, DIM, GRAIN,
+  fprintf (f, "%s;%u;%u;%u;%s;%s;%u;%s;%s;%s;%ld\n", s.nodename, DIM, GRAIN,
            easypap_requested_number_of_threads (), kernel_name, variant_name,
-           nb_iter, (label ?: "unlabelled"), (draw_param ?: "none"), time_in_us);
+           nb_iter, easypap_omp_schedule (), (label ?: "unlabelled"),
+           (draw_param ?: "none"), time_in_us);
 
   fclose (f);
 }
@@ -222,6 +229,7 @@ static void init_phases (void)
              DIM, TILE_SIZE);
 
 #ifdef ENABLE_MONITORING
+#ifdef ENABLE_TRACE
   if (do_trace) {
     char filename[1024];
 
@@ -236,9 +244,10 @@ static void init_phases (void)
                        label);
   }
 #endif
+#endif
 
   if (opencl_used) {
-    ocl_init ();
+    ocl_init (show_ocl_config);
     ocl_alloc_buffers ();
   } else
     PRINT_DEBUG ('i', "Init phase 2: [OpenCL init not required]\n");
@@ -273,11 +282,14 @@ static void init_phases (void)
   if (the_draw != NULL) {
     the_draw (draw_param);
     PRINT_DEBUG ('i', "Init phase 6: kernel-specific draw() hook called\n");
-  } else
+  } else {
+#ifndef ENABLE_SDL
+    if (!do_first_touch || (the_first_touch == NULL))
+      img_data_replicate (); // touch the data
+#endif
     PRINT_DEBUG ('i',
                  "Init phase 6: [no kernel-specific draw() hook defined]\n");
-
-  //img_data_replicate ();
+  }
 
   if (opencl_used) {
     ocl_send_image (image);
@@ -291,6 +303,8 @@ int main (int argc, char **argv)
   int iterations = 0;
 
   filter_args (&argc, argv);
+
+  arch_flags_print ();
 
   init_phases ();
 
@@ -306,7 +320,7 @@ int main (int argc, char **argv)
       the_refresh_img ();
 
     if (do_display)
-      graphics_refresh ();
+      graphics_refresh (iterations);
 
     if (refresh_rate == -1)
       refresh_rate = 1;
@@ -325,7 +339,7 @@ int main (int argc, char **argv)
         do {
           SDL_Event evt;
 
-          r = graphics_get_event (&evt, step);
+          r = graphics_get_event (&evt, step | stable);
 
           if (r > 0)
             switch (evt.type) {
@@ -338,16 +352,23 @@ int main (int argc, char **argv)
               // Si l'utilisateur appuie sur une touche
               switch (evt.key.keysym.sym) {
               case SDLK_ESCAPE:
+              case SDLK_q:
                 quit = 1;
                 break;
               case SDLK_SPACE:
-                step = 1 - step;
+                step ^= 1;
                 break;
               case SDLK_DOWN:
                 update_refresh_rate (-1);
                 break;
               case SDLK_UP:
                 update_refresh_rate (1);
+                break;
+              case SDLK_h:
+                gmonitor_toggle_heat_mode ();
+                break;
+              case SDLK_i:
+                graphics_toggle_display_iteration_number ();
                 break;
               default:;
               }
@@ -375,7 +396,7 @@ int main (int argc, char **argv)
 
       if (!stable) {
         if (quit) {
-          PRINT_MASTER ("\nComputation aborted at iteration %d\n", iterations);
+          PRINT_MASTER ("Computation aborted at iteration %d\n", iterations);
         } else {
           if (max_iter && iterations >= max_iter) {
             PRINT_MASTER ("Computation stopped after %d iterations\n",
@@ -409,15 +430,19 @@ int main (int argc, char **argv)
             if (do_thumbs && easypap_proc_is_master ()) {
               static unsigned iter_no = 0;
 
-              if (opencl_used)
-                ocl_retrieve_image (image);
+              if (opencl_used) {
+                if (the_refresh_img)
+                  the_refresh_img ();
+                else
+                  ocl_retrieve_image (image);
+              }
 
               graphics_save_thumbnail (++iter_no);
             }
           }
 
           if (do_display)
-            graphics_refresh ();
+            graphics_refresh (iterations);
         }
       }
       if (stable && quit_when_done)
@@ -431,10 +456,8 @@ int main (int argc, char **argv)
     struct timeval t1, t2;
     int n;
 
-#ifdef ENABLE_SDL
     if (do_trace | do_thumbs)
       refresh_rate = 1;
-#endif
 
     if (refresh_rate == -1) {
       if (max_iter)
@@ -464,10 +487,10 @@ int main (int argc, char **argv)
         if (do_thumbs && easypap_proc_is_master ()) {
           static unsigned iter_no = 0;
 
-          if (opencl_used)
-            ocl_retrieve_image (image);
-          else if (the_refresh_img)
+          if (the_refresh_img)
             the_refresh_img ();
+          else if (opencl_used)
+            ocl_retrieve_image (image);
 
           graphics_save_thumbnail (++iter_no);
         }
@@ -502,10 +525,10 @@ int main (int argc, char **argv)
 
     char filename[1024];
 
-    if (opencl_used)
-      ocl_retrieve_image (image);
-    else if (the_refresh_img)
+    if (the_refresh_img)
       the_refresh_img ();
+    else if (opencl_used)
+      ocl_retrieve_image (image);
 
     sprintf (filename, "dump-%s-%s-dim-%d-iter-%d.png", kernel_name,
              variant_name, DIM, iterations);
@@ -515,8 +538,10 @@ int main (int argc, char **argv)
 #endif
 
 #ifdef ENABLE_MONITORING
+#ifdef ENABLE_TRACE
   if (do_trace)
     trace_record_finalize ();
+#endif
 #endif
 
   if (the_finalize != NULL)
@@ -573,9 +598,12 @@ static void usage (int val)
   fprintf (stderr,
            "\t-r\t| --refresh-rate <N>\t: display only 1/Nth of images\n");
   fprintf (stderr, "\t-s\t| --size <DIM>\t\t: use image of size DIM x DIM\n");
-  fprintf (stderr, "\t-th\t| --thumbs\t\t: generate thumbnails\n");
   fprintf (stderr,
-           "\t-ts\t| --tile-size <TS>\t: use tiles of size TS x TS\n");
+           "\t-sr\t| --soft-rendering\t: disable hardware acceleration\n");
+  fprintf (stderr,
+           "\t-so\t| --show-ocl\t\t: display OpenCL platform and devices\n");
+  fprintf (stderr, "\t-th\t| --thumbs\t\t: generate thumbnails\n");
+  fprintf (stderr, "\t-ts\t| --tile-size <TS>\t: use tiles of size TS x TS\n");
   fprintf (stderr, "\t-t\t| --trace\t\t: enable trace\n");
   fprintf (stderr,
            "\t-v\t| --variant <name>\t: select variant <name> of kernel\n");
@@ -602,6 +630,11 @@ static void filter_args (int *argc, char *argv[])
       quit_when_done = 1;
     } else if (!strcmp (*argv, "--help") || !strcmp (*argv, "-h")) {
       usage (0);
+    } else if (!strcmp (*argv, "--soft-rendering") || !strcmp (*argv, "-sr")) {
+      soft_rendering = 1;
+    } else if (!strcmp (*argv, "--show-ocl") || !strcmp (*argv, "-so")) {
+      show_ocl_config = 1;
+      opencl_used = 1;
     } else if (!strcmp (*argv, "--first-touch") || !strcmp (*argv, "-ft")) {
       do_first_touch = 1;
     } else if (!strcmp (*argv, "--monitoring") || !strcmp (*argv, "-m")) {
@@ -613,7 +646,13 @@ static void filter_args (int *argc, char *argv[])
       do_gmonitor = 1;
 #endif
     } else if (!strcmp (*argv, "--trace") || !strcmp (*argv, "-t")) {
-      do_trace = 1;
+#ifndef ENABLE_TRACE
+      fprintf (
+          stderr,
+          "Warning: cannot generate trace if ENABLE_TRACE is not defined\n");
+#else
+      do_trace    = 1;
+#endif
     } else if (!strcmp (*argv, "--thumbs") || !strcmp (*argv, "-th")) {
 #ifndef ENABLE_SDL
       fprintf (stderr, "Warning: cannot generate thumbnails when ENABLE_SDL is "

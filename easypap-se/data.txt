@@ -1,5 +1,0 @@
-
-4,to the PKG_CONFIG_PATH environment variable,to the PKG_CONFIG_PATH environment variable
-8,to the PKG_CONFIG_PATH environment variable,to the PKG_CONFIG_PATH environment variable
-16,to the PKG_CONFIG_PATH environment variable,to the PKG_CONFIG_PATH environment variable
-32,to the PKG_CONFIG_PATH environment variable,to the PKG_CONFIG_PATH environment variable

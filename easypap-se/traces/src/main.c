@@ -12,7 +12,7 @@
 #include "trace_data.h"
 #include "trace_file.h"
 #include "trace_graphics.h"
-#include "trace_record.h"
+#include "trace_common.h"
 
 static int WINDOW_PREFERRED_WIDTH  = 1920;
 static int WINDOW_PREFERRED_HEIGHT = 1024;
@@ -167,6 +167,7 @@ int main (int argc, char **argv)
           trace_graphics_toggle_vh_mode ();
           break;
         case SDLK_ESCAPE:
+        case SDLK_q:
           quit = SDL_TRUE;
           break;
         }

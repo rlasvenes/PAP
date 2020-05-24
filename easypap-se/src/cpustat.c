@@ -303,13 +303,16 @@ void cpustat_start_work (long now, int who)
   //             (now - cpu_stats[who].end_time));
 }
 
-void cpustat_finish_work (long now, int who)
+long cpustat_finish_work (long now, int who)
 {
+  long duration = now - cpu_stats[who].start_time;
+
   // How long did the cpu work?
-  cpu_stats[who].cumulated_work += (now - cpu_stats[who].start_time);
+  cpu_stats[who].cumulated_work += duration;
 
   //PRINT_DEBUG ('m', "CPU %d completes its tile (worked during %ld)\n", who,
-  //             (now - cpu_stats[who].start_time));
+  //             duration);
+  return duration;
 }
 
 void cpustat_start_idle (long now, int who)
